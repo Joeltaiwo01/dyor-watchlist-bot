@@ -1,6 +1,6 @@
 """
 MAIN
-This is the one script GitHub Actions runs on a timer.
+Runs on a schedule via GitHub Actions.
 """
 
 import sys
@@ -16,11 +16,34 @@ from vet import vet_candidate, recheck_live_status
 import notify
 
 
+def write_status_report(now, discovered_count, discover_errors, new_count, live_count, total_tracked):
+    lines = [
+        f"# DYOR Bot Status",
+        f"",
+        f"Last run: {now}",
+        f"",
+        f"- Candidates discovered this run: {discovered_count}",
+        f"- New projects added to watchlist: {new_count}",
+        f"- Projects that flipped to LIVE: {live_count}",
+        f"- Total projects being tracked: {total_tracked}",
+        f"",
+    ]
+    if discover_errors:
+        lines.append("## Errors while discovering (this is likely why nothing is found)")
+        for err in discover_errors:
+            lines.append(f"- {err}")
+    else:
+        lines.append("No errors — discovery ran cleanly. Zero results just means nothing new passed the filter this run.")
+
+    with open("status.md", "w") as f:
+        f.write("\n".join(lines))
+
+
 def run():
     now = datetime.now(timezone.utc).isoformat()
     wlist = wl.load()
 
-    candidates = discover_all()
+    candidates, discover_errors = discover_all()
     print(f"[main] Discovered {len(candidates)} raw candidates")
 
     new_count = 0
@@ -58,6 +81,7 @@ def run():
     print(f"[main] {live_count} projects flipped to LIVE this run")
 
     wl.save(wlist)
+    write_status_report(now, len(candidates), discover_errors, new_count, live_count, len(wlist))
     print(f"[main] Watchlist saved: {len(wlist)} total projects tracked")
 
 
