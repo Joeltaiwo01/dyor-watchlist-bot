@@ -5,6 +5,7 @@ Runs on a schedule via GitHub Actions.
 
 import sys
 import os
+import json
 from datetime import datetime, timezone
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -14,6 +15,21 @@ import watchlist as wl
 from discover import discover_all
 from vet import vet_candidate, recheck_live_status
 import notify
+
+KNOWN_PROTOCOLS_FILE = "data/known_protocols.json"
+
+
+def load_known_protocol_ids():
+    if os.path.exists(KNOWN_PROTOCOLS_FILE):
+        with open(KNOWN_PROTOCOLS_FILE, "r") as f:
+            return json.load(f)
+    return []
+
+
+def save_known_protocol_ids(ids):
+    os.makedirs(os.path.dirname(KNOWN_PROTOCOLS_FILE), exist_ok=True)
+    with open(KNOWN_PROTOCOLS_FILE, "w") as f:
+        json.dump(ids, f)
 
 
 def write_status_report(now, discovered_count, discover_errors, new_count, live_count, total_tracked):
@@ -42,8 +58,9 @@ def write_status_report(now, discovered_count, discover_errors, new_count, live_
 def run():
     now = datetime.now(timezone.utc).isoformat()
     wlist = wl.load()
+    known_protocol_ids = load_known_protocol_ids()
 
-    candidates, discover_errors = discover_all()
+    candidates, discover_errors, updated_known_ids = discover_all(known_protocol_ids)
     print(f"[main] Discovered {len(candidates)} raw candidates")
 
     new_count = 0
@@ -81,6 +98,7 @@ def run():
     print(f"[main] {live_count} projects flipped to LIVE this run")
 
     wl.save(wlist)
+    save_known_protocol_ids(updated_known_ids)
     write_status_report(now, len(candidates), discover_errors, new_count, live_count, len(wlist))
     print(f"[main] Watchlist saved: {len(wlist)} total projects tracked")
 
