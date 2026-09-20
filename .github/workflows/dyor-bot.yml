@@ -24,12 +24,14 @@ jobs:
         run: pip install requests
 
       - name: Run DYOR bot
+        env:
+          COINMARKETCAP_API_KEY: ${{ secrets.COINMARKETCAP_API_KEY }}
         run: python scripts/main.py
 
       - name: Save updated watchlist back to the repo
         run: |
           git config user.name "dyor-bot"
           git config user.email "dyor-bot@users.noreply.github.com"
-          git add data/watchlist.json status.md
+          git add data/watchlist.json data/known_protocols.json status.md
           git diff --quiet --cached || git commit -m "Update watchlist [automated]"
           git push
