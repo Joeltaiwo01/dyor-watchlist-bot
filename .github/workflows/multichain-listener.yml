@@ -9,6 +9,8 @@ jobs:
   listen:
     runs-on: ubuntu-latest
     timeout-minutes: 350
+    permissions:
+      contents: write
     steps:
       - name: Check out repo
         uses: actions/checkout@v4
