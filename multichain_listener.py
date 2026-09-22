@@ -297,7 +297,7 @@ async def listen_robinhood(start_time, watchlist_names, seen_scam_hashes):
             if last_block_checked is None:
                 last_block_checked = latest_block - 5
             if latest_block > last_block_checked:
-                logs_resp = requests.post(ROBINHOOD_HTTP, json={"jsonrpc": "2.0", "id": 1, "method": "eth_getLogs", "params": [{"fromBlock": hex(last_block_checked + 1), "toBlock": hex(latest_block), "address": ROBINHOOD_BAGS_FACTORY}]}, timeout=20)
+                logs_resp = requests.post(ROBINHOOD_HTTP, json={"jsonrpc": "2.0", "id": 1, "method": "eth_getLogs", "params": [{"fromBlock": hex(last_block_checked + 1), "toBlock": hex(latest_block), "address": ROBINHOOD_PONS_FACTORY}]}, timeout=20)
                 logs = logs_resp.json().get("result", [])
                 for log in logs:
                     tx_hash = log.get("transactionHash")
