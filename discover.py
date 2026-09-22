@@ -37,6 +37,7 @@ def get_cmc_new_candidates(errors):
                 "date_added": coin.get("date_added"),
                 "market_cap": (coin.get("quote", {}).get("USD", {}) or {}).get("market_cap"),
                 "platform": (coin.get("platform") or {}).get("name"),
+                "contract_address": (coin.get("platform") or {}).get("token_address"),
             })
     except Exception as e:
         errors.append(f"CoinMarketCap fetch failed: {e}")
