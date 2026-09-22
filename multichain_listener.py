@@ -25,7 +25,7 @@ CHAINS = {
 }
 
 ROBINHOOD_HTTP = "https://rpc.mainnet.chain.robinhood.com"
-ROBINHOOD_BAGS_FACTORY = "0x46aD6f53A3C26C8027826e2104cF0595b7b24D40"
+ROBINHOOD_PONS_FACTORY = "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e"
 ROBINHOOD_EXPLORER_TX = "https://robinhoodchain.blockscout.com/tx/"
 
 PUMPPORTAL_WS = "wss://pumpportal.fun/api/data"
