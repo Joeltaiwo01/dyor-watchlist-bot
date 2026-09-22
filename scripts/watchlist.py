@@ -1,6 +1,5 @@
 """
 WATCHLIST STORAGE
-This is the bot's memory.
 """
 
 import json
@@ -28,6 +27,7 @@ def add(watchlist, candidate, vet_result, first_seen):
         "status": vet_result["status"],
         "chains": vet_result["chains"],
         "reasons": vet_result["reasons"],
+        "contract_address": vet_result.get("contract_address"),
         "first_seen": first_seen,
         "last_checked": first_seen,
         "notified_live": False,
