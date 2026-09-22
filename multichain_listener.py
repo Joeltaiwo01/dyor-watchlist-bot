@@ -1,7 +1,8 @@
 """
 MULTI-CHAIN INSTANT LISTENER
-Watches Solana (Pump.fun), Ethereum, Base, BSC, and Robinhood Chain (Bags)
-at the same time.
+Only alerts on launches matching a real project already on your DYOR
+watchlist. Everything else is checked and logged silently — never sent
+as a notification.
 """
 
 import asyncio
@@ -18,30 +19,9 @@ NTFY_URL = f"https://ntfy.sh/{NTFY_TOPIC}"
 MAX_RUNTIME_SECONDS = 5 * 60 * 60 + 45 * 60
 
 CHAINS = {
-    "ethereum": {
-        "ws": "wss://ethereum-rpc.publicnode.com",
-        "http": "https://ethereum-rpc.publicnode.com",
-        "factory": "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f",
-        "explorer_api": "https://api.etherscan.io/api",
-        "goplus_chain_id": "1",
-        "explorer_tx": "https://etherscan.io/tx/",
-    },
-    "base": {
-        "ws": "wss://base-rpc.publicnode.com",
-        "http": "https://base-rpc.publicnode.com",
-        "factory": "0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6",
-        "explorer_api": "https://api.basescan.org/api",
-        "goplus_chain_id": "8453",
-        "explorer_tx": "https://basescan.org/tx/",
-    },
-    "bsc": {
-        "ws": "wss://bsc-rpc.publicnode.com",
-        "http": "https://bsc-rpc.publicnode.com",
-        "factory": "0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73",
-        "explorer_api": "https://api.bscscan.com/api",
-        "goplus_chain_id": "56",
-        "explorer_tx": "https://bscscan.com/tx/",
-    },
+    "ethereum": {"ws": "wss://ethereum-rpc.publicnode.com", "http": "https://ethereum-rpc.publicnode.com", "factory": "0x5C69bEe701ef814a2B6a3EDD4B1652CB9cc5aA6f", "explorer_api": "https://api.etherscan.io/api", "goplus_chain_id": "1", "explorer_tx": "https://etherscan.io/tx/"},
+    "base": {"ws": "wss://base-rpc.publicnode.com", "http": "https://base-rpc.publicnode.com", "factory": "0x8909Dc15e40173Ff4699343b6eB8132c65e18eC6", "explorer_api": "https://api.basescan.org/api", "goplus_chain_id": "8453", "explorer_tx": "https://basescan.org/tx/"},
+    "bsc": {"ws": "wss://bsc-rpc.publicnode.com", "http": "https://bsc-rpc.publicnode.com", "factory": "0xcA143Ce32Fe78f1f7019d7d551a6402fC5350c73", "explorer_api": "https://api.bscscan.com/api", "goplus_chain_id": "56", "explorer_tx": "https://bscscan.com/tx/"},
 }
 
 ROBINHOOD_HTTP = "https://rpc.mainnet.chain.robinhood.com"
@@ -60,12 +40,7 @@ PAIR_CREATED_TOPIC = Web3.keccak(text="PairCreated(address,address,address,uint2
 
 def send_ntfy(title, message, priority="high", tags=None):
     try:
-        requests.post(
-            NTFY_URL,
-            data=message.encode("utf-8"),
-            headers={"Title": title, "Priority": priority, "Tags": ",".join(tags or [])},
-            timeout=15,
-        )
+        requests.post(NTFY_URL, data=message.encode("utf-8"), headers={"Title": title, "Priority": priority, "Tags": ",".join(tags or [])}, timeout=15)
     except Exception as e:
         print(f"[notify] Failed: {e}")
 
@@ -110,11 +85,7 @@ def log_alert(entry):
 
 def check_goplus(chain_id, address):
     try:
-        resp = requests.get(
-            f"https://api.gopluslabs.io/api/v1/token_security/{chain_id}",
-            params={"contract_addresses": address},
-            timeout=15,
-        )
+        resp = requests.get(f"https://api.gopluslabs.io/api/v1/token_security/{chain_id}", params={"contract_addresses": address}, timeout=15)
         if resp.status_code != 200:
             return None
         result = resp.json().get("result", {}).get(address.lower(), {})
@@ -129,11 +100,7 @@ def check_goplus(chain_id, address):
 
 def check_honeypot_is(chain_id, address):
     try:
-        resp = requests.get(
-            "https://api.honeypot.is/v2/IsHoneypot",
-            params={"address": address, "chainID": chain_id},
-            timeout=15,
-        )
+        resp = requests.get("https://api.honeypot.is/v2/IsHoneypot", params={"address": address, "chainID": chain_id}, timeout=15)
         if resp.status_code != 200:
             return None
         return not resp.json().get("honeypotResult", {}).get("isHoneypot", False)
@@ -144,36 +111,15 @@ def check_honeypot_is(chain_id, address):
 def get_deployer_and_history(chain_key, token_address, explorer_api):
     api_key = os.environ.get(f"{chain_key.upper()}_EXPLORER_API_KEY", "")
     try:
-        resp = requests.get(
-            explorer_api,
-            params={
-                "module": "contract",
-                "action": "getcontractcreation",
-                "contractaddresses": token_address,
-                "apikey": api_key,
-            },
-            timeout=15,
-        )
+        resp = requests.get(explorer_api, params={"module": "contract", "action": "getcontractcreation", "contractaddresses": token_address, "apikey": api_key}, timeout=15)
         result = resp.json().get("result")
         if not result or not isinstance(result, list) or not result[0].get("contractCreator"):
             return None, None, None
         deployer = result[0]["contractCreator"]
-
-        tx_resp = requests.get(
-            explorer_api,
-            params={
-                "module": "account",
-                "action": "txlist",
-                "address": deployer,
-                "sort": "asc",
-                "apikey": api_key,
-            },
-            timeout=15,
-        )
+        tx_resp = requests.get(explorer_api, params={"module": "account", "action": "txlist", "address": deployer, "sort": "asc", "apikey": api_key}, timeout=15)
         txs = tx_resp.json().get("result", [])
         contract_creations = [t for t in txs if t.get("to") == "" or t.get("to") is None]
         first_funding_from = txs[0].get("from") if txs else None
-
         return deployer, len(contract_creations), first_funding_from
     except Exception as e:
         print(f"[history] Check failed for {token_address} on {chain_key}: {e}")
@@ -182,11 +128,7 @@ def get_deployer_and_history(chain_key, token_address, explorer_api):
 
 def get_bytecode_hash(chain_http, token_address):
     try:
-        resp = requests.post(
-            chain_http,
-            json={"jsonrpc": "2.0", "id": 1, "method": "eth_getCode", "params": [token_address, "latest"]},
-            timeout=15,
-        )
+        resp = requests.post(chain_http, json={"jsonrpc": "2.0", "id": 1, "method": "eth_getCode", "params": [token_address, "latest"]}, timeout=15)
         code = resp.json().get("result", "")
         if not code or code == "0x":
             return None
@@ -195,9 +137,38 @@ def get_bytecode_hash(chain_http, token_address):
         return None
 
 
+def get_token_name_symbol(chain_http, token_address):
+    name, symbol = None, None
+    try:
+        for selector, label in [("0x06fdde03", "name"), ("0x95d89b41", "symbol")]:
+            resp = requests.post(chain_http, json={"jsonrpc": "2.0", "id": 1, "method": "eth_call", "params": [{"to": token_address, "data": selector}, "latest"]}, timeout=10)
+            raw = resp.json().get("result", "")
+            if raw and raw != "0x":
+                try:
+                    hex_data = raw[2:]
+                    length = int(hex_data[64:128], 16)
+                    text_hex = hex_data[128:128 + length * 2]
+                    decoded = bytes.fromhex(text_hex).decode("utf-8", errors="ignore").strip()
+                except Exception:
+                    decoded = None
+                if label == "name":
+                    name = decoded
+                else:
+                    symbol = decoded
+    except Exception:
+        pass
+    return name, symbol
+
+
 def build_alert_and_check(chain_key, chain_cfg, token_address, watchlist_names, seen_scam_hashes):
     reasons = []
     passed = True
+    matched_watchlist = False
+
+    token_name, token_symbol = get_token_name_symbol(chain_cfg["http"], token_address)
+    if token_name and token_name.strip().lower() in watchlist_names:
+        matched_watchlist = True
+        reasons.append(f"✅ MATCHES your DYOR watchlist — this is a project you already vetted as real: \"{token_name}\"")
 
     goplus_ok = check_goplus(chain_cfg["goplus_chain_id"], token_address)
     honeypot_ok = check_honeypot_is(chain_cfg["goplus_chain_id"], token_address)
@@ -209,9 +180,7 @@ def build_alert_and_check(chain_key, chain_cfg, token_address, watchlist_names, 
     else:
         reasons.append("Safety check inconclusive — verify manually")
 
-    deployer, prior_count, funding_from = get_deployer_and_history(
-        chain_key, token_address, chain_cfg["explorer_api"]
-    )
+    deployer, prior_count, funding_from = get_deployer_and_history(chain_key, token_address, chain_cfg["explorer_api"])
     if deployer:
         if prior_count and prior_count > 3:
             reasons.append(f"⚠️ Deployer wallet has created {prior_count} contracts before — check its history")
@@ -223,19 +192,14 @@ def build_alert_and_check(chain_key, chain_cfg, token_address, watchlist_names, 
         reasons.append("🚨 Contract code matches a previously flagged scam template")
         passed = False
 
-    return {"passed": passed, "reasons": reasons, "deployer": deployer}
+    return {"passed": passed, "reasons": reasons, "deployer": deployer, "matched_watchlist": matched_watchlist, "token_name": token_name}
 
 
 async def listen_evm_chain(chain_key, chain_cfg, start_time, watchlist_names, seen_scam_hashes):
     print(f"[{chain_key}] Connecting...")
     try:
         async with websockets.connect(chain_cfg["ws"], ping_interval=20, ping_timeout=20) as ws:
-            sub_request = {
-                "jsonrpc": "2.0",
-                "id": 1,
-                "method": "eth_subscribe",
-                "params": ["logs", {"address": chain_cfg["factory"], "topics": [PAIR_CREATED_TOPIC]}],
-            }
+            sub_request = {"jsonrpc": "2.0", "id": 1, "method": "eth_subscribe", "params": ["logs", {"address": chain_cfg["factory"], "topics": [PAIR_CREATED_TOPIC]}]}
             await ws.send(json.dumps(sub_request))
             print(f"[{chain_key}] Subscribed to PairCreated events.")
 
@@ -244,7 +208,6 @@ async def listen_evm_chain(chain_key, chain_cfg, start_time, watchlist_names, se
                     raw = await asyncio.wait_for(ws.recv(), timeout=60)
                 except asyncio.TimeoutError:
                     continue
-
                 try:
                     msg = json.loads(raw)
                     log = msg.get("params", {}).get("result", {})
@@ -262,15 +225,20 @@ async def listen_evm_chain(chain_key, chain_cfg, start_time, watchlist_names, se
                     if check is None or not check["passed"]:
                         continue
 
+                    if not check["matched_watchlist"]:
+                        log_alert({"chain": chain_key, "address": token_address, "time": time.time(), "reasons": check["reasons"], "matched_watchlist": False, "alerted": False})
+                        continue
+
                     reasons_text = "\n".join(f"• {r}" for r in check["reasons"])
                     message = f"Contract: {token_address}\nChain: {chain_key.capitalize()}\n{reasons_text}\n{chain_cfg['explorer_tx']}{tx_hash}"
-                    send_ntfy(f"🆕 New pair on {chain_key.capitalize()}", message, tags=["new"])
-                    log_alert({"chain": chain_key, "address": token_address, "time": time.time(), "reasons": check["reasons"]})
+                    title = f"🎯 REAL PROJECT LAUNCHED: {check['token_name']}"
+                    send_ntfy(title, message, tags=["star", "rotating_light"])
+                    log_alert({"chain": chain_key, "address": token_address, "time": time.time(), "reasons": check["reasons"], "matched_watchlist": True, "alerted": True})
     except Exception as e:
         print(f"[{chain_key}] Connection error: {e}")
 
 
-async def listen_solana(start_time):
+async def listen_solana(start_time, watchlist_names):
     print("[solana] Connecting to Pump.fun...")
     try:
         async with websockets.connect(PUMPPORTAL_WS, ping_interval=20, ping_timeout=20) as ws:
@@ -293,6 +261,10 @@ async def listen_solana(start_time):
                 if not mint:
                     continue
 
+                if not name or name.strip().lower() not in watchlist_names:
+                    log_alert({"chain": "solana", "address": mint, "time": time.time(), "matched_watchlist": False, "alerted": False})
+                    continue
+
                 try:
                     resp = requests.get(RUGCHECK_REPORT.format(mint=mint), timeout=10)
                     if resp.status_code == 200:
@@ -308,8 +280,8 @@ async def listen_solana(start_time):
                     verdict = "Safety check unavailable — verify manually"
 
                 message = f"Contract: {mint}\nChain: Solana (Pump.fun)\n{verdict}\nhttps://pump.fun/{mint}"
-                send_ntfy(f"🆕 New launch: {name} ({symbol})", message, tags=["new", "rocket"])
-                log_alert({"chain": "solana", "address": mint, "time": time.time(), "reasons": [verdict]})
+                send_ntfy(f"🎯 REAL PROJECT LAUNCHED: {name} ({symbol})", message, tags=["star", "rotating_light"])
+                log_alert({"chain": "solana", "address": mint, "time": time.time(), "reasons": [verdict], "matched_watchlist": True, "alerted": True})
     except Exception as e:
         print(f"[solana] Connection error: {e}")
 
@@ -320,36 +292,19 @@ async def listen_robinhood(start_time, watchlist_names, seen_scam_hashes):
 
     while time.time() - start_time < MAX_RUNTIME_SECONDS:
         try:
-            block_resp = requests.post(
-                ROBINHOOD_HTTP,
-                json={"jsonrpc": "2.0", "id": 1, "method": "eth_blockNumber", "params": []},
-                timeout=15,
-            )
+            block_resp = requests.post(ROBINHOOD_HTTP, json={"jsonrpc": "2.0", "id": 1, "method": "eth_blockNumber", "params": []}, timeout=15)
             latest_block = int(block_resp.json()["result"], 16)
-
             if last_block_checked is None:
                 last_block_checked = latest_block - 5
-
             if latest_block > last_block_checked:
-                logs_resp = requests.post(
-                    ROBINHOOD_HTTP,
-                    json={
-                        "jsonrpc": "2.0", "id": 1, "method": "eth_getLogs",
-                        "params": [{"fromBlock": hex(last_block_checked + 1), "toBlock": hex(latest_block), "address": ROBINHOOD_BAGS_FACTORY}],
-                    },
-                    timeout=20,
-                )
+                logs_resp = requests.post(ROBINHOOD_HTTP, json={"jsonrpc": "2.0", "id": 1, "method": "eth_getLogs", "params": [{"fromBlock": hex(last_block_checked + 1), "toBlock": hex(latest_block), "address": ROBINHOOD_BAGS_FACTORY}]}, timeout=20)
                 logs = logs_resp.json().get("result", [])
                 for log in logs:
                     tx_hash = log.get("transactionHash")
-                    message = f"New activity on Bags launch factory\nChain: Robinhood Chain\nTx: {ROBINHOOD_EXPLORER_TX}{tx_hash}\n(exact token address needs manual check)"
-                    send_ntfy("🆕 New Robinhood Chain launch activity", message, tags=["new"])
-                    log_alert({"chain": "robinhood", "tx": tx_hash, "time": time.time()})
-
+                    log_alert({"chain": "robinhood", "tx": tx_hash, "time": time.time(), "matched_watchlist": False, "alerted": False})
                 last_block_checked = latest_block
         except Exception as e:
             print(f"[robinhood] Poll error: {e}")
-
         await asyncio.sleep(30)
 
 
@@ -358,7 +313,7 @@ async def main():
     watchlist_names = load_watchlist_names()
     seen_scam_hashes = load_seen_scam_bytecode()
 
-    tasks = [listen_solana(start_time), listen_robinhood(start_time, watchlist_names, seen_scam_hashes)]
+    tasks = [listen_solana(start_time, watchlist_names), listen_robinhood(start_time, watchlist_names, seen_scam_hashes)]
     for chain_key, chain_cfg in CHAINS.items():
         tasks.append(listen_evm_chain(chain_key, chain_cfg, start_time, watchlist_names, seen_scam_hashes))
 
