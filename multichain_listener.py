@@ -11,7 +11,6 @@ import websockets
 from web3 import Web3
 
 NTFY_TOPIC = "Jay_dyor_alerts-8x2f"
-NTFY_URL = f"https://ntfy.sh/{NTFY_TOPIC}"
 
 MAX_RUNTIME_SECONDS = 5 * 60 * 60 + 45 * 60
 
@@ -37,7 +36,17 @@ PAIR_CREATED_TOPIC = Web3.keccak(text="PairCreated(address,address,address,uint2
 
 def send_ntfy(title, message, priority="high", tags=None):
     try:
-        requests.post(NTFY_URL, data=message.encode("utf-8"), headers={"Title": title, "Priority": priority, "Tags": ",".join(tags or [])}, timeout=15)
+        requests.post(
+            "https://ntfy.sh/",
+            json={
+                "topic": NTFY_TOPIC,
+                "title": title,
+                "message": message,
+                "priority": {"low": 3, "default": 3, "high": 4, "urgent": 5}.get(priority, 3),
+                "tags": tags or [],
+            },
+            timeout=15,
+        )
     except Exception as e:
         print(f"[notify] Failed: {e}")
 
@@ -165,7 +174,7 @@ def build_alert_and_check(chain_key, chain_cfg, token_address, watchlist_names, 
     token_name, token_symbol = get_token_name_symbol(chain_cfg["http"], token_address)
     if token_name and token_name.strip().lower() in watchlist_names:
         matched_watchlist = True
-        reasons.append(f"✅ MATCHES your DYOR watchlist — this is a project you already vetted as real: \"{token_name}\"")
+        reasons.append(f"MATCHES your DYOR watchlist — this is a project you already vetted as real: \"{token_name}\"")
 
     goplus_ok = check_goplus(chain_cfg["goplus_chain_id"], token_address)
     honeypot_ok = check_honeypot_is(chain_cfg["goplus_chain_id"], token_address)
@@ -180,13 +189,13 @@ def build_alert_and_check(chain_key, chain_cfg, token_address, watchlist_names, 
     deployer, prior_count, funding_from = get_deployer_and_history(chain_key, token_address, chain_cfg["explorer_api"])
     if deployer:
         if prior_count and prior_count > 3:
-            reasons.append(f"⚠️ Deployer wallet has created {prior_count} contracts before — check its history")
+            reasons.append(f"Deployer wallet has created {prior_count} contracts before — check its history")
         else:
             reasons.append(f"Deployer: {deployer[:10]}... (limited prior contract history)")
 
     bytecode_hash = get_bytecode_hash(chain_cfg["http"], token_address)
     if bytecode_hash and bytecode_hash in seen_scam_hashes:
-        reasons.append("🚨 Contract code matches a previously flagged scam template")
+        reasons.append("Contract code matches a previously flagged scam template")
         passed = False
 
     return {"passed": passed, "reasons": reasons, "deployer": deployer, "matched_watchlist": matched_watchlist, "token_name": token_name}
@@ -224,9 +233,9 @@ async def listen_evm_chain(chain_key, chain_cfg, start_time, shared_state, seen_
                     if not check["matched_watchlist"]:
                         log_alert({"chain": chain_key, "address": token_address, "time": time.time(), "reasons": check["reasons"], "matched_watchlist": False, "alerted": False})
                         continue
-                    reasons_text = "\n".join(f"• {r}" for r in check["reasons"])
+                    reasons_text = "\n".join(f"- {r}" for r in check["reasons"])
                     message = f"Contract: {token_address}\nChain: {chain_key.capitalize()}\n{reasons_text}\n{chain_cfg['explorer_tx']}{tx_hash}"
-                    title = f"🎯 REAL PROJECT LAUNCHED: {check['token_name']}"
+                    title = f"REAL PROJECT LAUNCHED: {check['token_name']}"
                     send_ntfy(title, message, tags=["star", "rotating_light"])
                     log_alert({"chain": chain_key, "address": token_address, "time": time.time(), "reasons": check["reasons"], "matched_watchlist": True, "alerted": True})
     except Exception as e:
@@ -275,7 +284,7 @@ async def listen_solana(start_time, shared_state):
                     verdict = "Safety check unavailable — verify manually"
 
                 message = f"Contract: {mint}\nChain: Solana (Pump.fun)\n{verdict}\nhttps://pump.fun/{mint}"
-                send_ntfy(f"🎯 REAL PROJECT LAUNCHED: {name} ({symbol})", message, tags=["star", "rotating_light"])
+                send_ntfy(f"REAL PROJECT LAUNCHED: {name} ({symbol})", message, tags=["star", "rotating_light"])
                 log_alert({"chain": "solana", "address": mint, "time": time.time(), "reasons": [verdict], "matched_watchlist": True, "alerted": True})
     except Exception as e:
         print(f"[solana] Connection error: {e}")
@@ -311,7 +320,7 @@ async def refresh_watchlist_periodically(shared_state, start_time, interval_seco
 
 async def main():
     start_time = time.time()
-    send_ntfy("✅ Listener session started", f"Watching all 5 chains. Tracking {len(load_watchlist_names())} real projects.", priority="low", tags=["gear"])
+    send_ntfy("Listener session started", f"Watching all 5 chains. Tracking {len(load_watchlist_names())} real projects.", priority="low", tags=["gear"])
     shared_state = {"names": load_watchlist_names()}
     seen_scam_hashes = load_seen_scam_bytecode()
 
