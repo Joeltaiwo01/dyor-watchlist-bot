@@ -1,7 +1,5 @@
 """
 MULTI-CHAIN INSTANT LISTENER
-Only alerts on launches matching a real project already on your DYOR
-watchlist. Everything else is checked and logged silently.
 """
 
 import asyncio
@@ -313,6 +311,7 @@ async def refresh_watchlist_periodically(shared_state, start_time, interval_seco
 
 async def main():
     start_time = time.time()
+    send_ntfy("✅ Listener session started", f"Watching all 5 chains. Tracking {len(load_watchlist_names())} real projects.", priority="low", tags=["gear"])
     shared_state = {"names": load_watchlist_names()}
     seen_scam_hashes = load_seen_scam_bytecode()
 
