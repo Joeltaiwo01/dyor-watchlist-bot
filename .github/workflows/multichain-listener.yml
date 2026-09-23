@@ -29,11 +29,13 @@ jobs:
           BASE_EXPLORER_API_KEY: ${{ secrets.BASE_EXPLORER_API_KEY }}
           BSC_EXPLORER_API_KEY: ${{ secrets.BSC_EXPLORER_API_KEY }}
         run: python multichain_listener.py
-
       - name: Save updated tracking data
         run: |
           git config user.name "instant-listener-bot"
           git config user.email "instant-listener-bot@users.noreply.github.com"
           git add data/seen_scam_bytecode.json data/instant_alerts_log.json
           git diff --quiet --cached || git commit -m "Update tracking data [automated]"
+          git pull --rebase origin main
           git push
+
+    
