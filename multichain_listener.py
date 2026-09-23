@@ -1,8 +1,7 @@
 """
 MULTI-CHAIN INSTANT LISTENER
 Only alerts on launches matching a real project already on your DYOR
-watchlist. Everything else is checked and logged silently — never sent
-as a notification.
+watchlist. Everything else is checked and logged silently.
 """
 
 import asyncio
@@ -195,7 +194,7 @@ def build_alert_and_check(chain_key, chain_cfg, token_address, watchlist_names, 
     return {"passed": passed, "reasons": reasons, "deployer": deployer, "matched_watchlist": matched_watchlist, "token_name": token_name}
 
 
-async def listen_evm_chain(chain_key, chain_cfg, start_time, watchlist_names, seen_scam_hashes):
+async def listen_evm_chain(chain_key, chain_cfg, start_time, shared_state, seen_scam_hashes):
     print(f"[{chain_key}] Connecting...")
     try:
         async with websockets.connect(chain_cfg["ws"], ping_interval=20, ping_timeout=20) as ws:
@@ -221,14 +220,12 @@ async def listen_evm_chain(chain_key, chain_cfg, start_time, watchlist_names, se
                     continue
 
                 for token_address in (token0, token1):
-                    check = build_alert_and_check(chain_key, chain_cfg, token_address, watchlist_names, seen_scam_hashes)
+                    check = build_alert_and_check(chain_key, chain_cfg, token_address, shared_state["names"], seen_scam_hashes)
                     if check is None or not check["passed"]:
                         continue
-
                     if not check["matched_watchlist"]:
                         log_alert({"chain": chain_key, "address": token_address, "time": time.time(), "reasons": check["reasons"], "matched_watchlist": False, "alerted": False})
                         continue
-
                     reasons_text = "\n".join(f"• {r}" for r in check["reasons"])
                     message = f"Contract: {token_address}\nChain: {chain_key.capitalize()}\n{reasons_text}\n{chain_cfg['explorer_tx']}{tx_hash}"
                     title = f"🎯 REAL PROJECT LAUNCHED: {check['token_name']}"
@@ -238,7 +235,7 @@ async def listen_evm_chain(chain_key, chain_cfg, start_time, watchlist_names, se
         print(f"[{chain_key}] Connection error: {e}")
 
 
-async def listen_solana(start_time, watchlist_names):
+async def listen_solana(start_time, shared_state):
     print("[solana] Connecting to Pump.fun...")
     try:
         async with websockets.connect(PUMPPORTAL_WS, ping_interval=20, ping_timeout=20) as ws:
@@ -261,7 +258,7 @@ async def listen_solana(start_time, watchlist_names):
                 if not mint:
                     continue
 
-                if not name or name.strip().lower() not in watchlist_names:
+                if not name or name.strip().lower() not in shared_state["names"]:
                     log_alert({"chain": "solana", "address": mint, "time": time.time(), "matched_watchlist": False, "alerted": False})
                     continue
 
@@ -286,7 +283,7 @@ async def listen_solana(start_time, watchlist_names):
         print(f"[solana] Connection error: {e}")
 
 
-async def listen_robinhood(start_time, watchlist_names, seen_scam_hashes):
+async def listen_robinhood(start_time, shared_state, seen_scam_hashes):
     print("[robinhood] Starting polling loop...")
     last_block_checked = None
 
@@ -308,14 +305,24 @@ async def listen_robinhood(start_time, watchlist_names, seen_scam_hashes):
         await asyncio.sleep(30)
 
 
+async def refresh_watchlist_periodically(shared_state, start_time, interval_seconds=300):
+    while time.time() - start_time < MAX_RUNTIME_SECONDS:
+        shared_state["names"] = load_watchlist_names()
+        await asyncio.sleep(interval_seconds)
+
+
 async def main():
     start_time = time.time()
-    watchlist_names = load_watchlist_names()
+    shared_state = {"names": load_watchlist_names()}
     seen_scam_hashes = load_seen_scam_bytecode()
 
-    tasks = [listen_solana(start_time, watchlist_names), listen_robinhood(start_time, watchlist_names, seen_scam_hashes)]
+    tasks = [
+        refresh_watchlist_periodically(shared_state, start_time),
+        listen_solana(start_time, shared_state),
+        listen_robinhood(start_time, shared_state, seen_scam_hashes),
+    ]
     for chain_key, chain_cfg in CHAINS.items():
-        tasks.append(listen_evm_chain(chain_key, chain_cfg, start_time, watchlist_names, seen_scam_hashes))
+        tasks.append(listen_evm_chain(chain_key, chain_cfg, start_time, shared_state, seen_scam_hashes))
 
     await asyncio.gather(*tasks)
     save_seen_scam_bytecode(seen_scam_hashes)
