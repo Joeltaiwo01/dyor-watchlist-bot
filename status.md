@@ -1,10 +1,10 @@
 # DYOR Bot Status
 
-Last run: 2026-10-07T02:24:54.036492+00:00
+Last run: 2026-10-07T09:11:35.479864+00:00
 
-- Candidates discovered this run: 53
-- New projects added to watchlist: 3
+- Candidates discovered this run: 50
+- New projects added to watchlist: 1
 - Projects that flipped to LIVE: 0
-- Total projects being tracked: 5998
+- Total projects being tracked: 5999
 
 No errors — discovery ran cleanly. Zero results just means nothing new passed the filter this run.
